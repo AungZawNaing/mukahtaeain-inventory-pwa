@@ -190,25 +190,52 @@ async function testLocalDatabase() {
   
 const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbzqp7JmZQAHKNeqANIXyoCYhARaAY3mM6sa7Blgv6xL3oJTql_pJ9u3JhlOcRHGVw58/exec?api=inventory";
 
+
+function getInventoryJSONP() {
+  return new Promise((resolve, reject) => {
+    const callbackName =
+      "inventoryCallback_" + Date.now();
+
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("API တုံ့ပြန်မှု အချိန်ကုန်သွားပါသည်"));
+    }, 20000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Google Apps Script API ကို မရယူနိုင်ပါ"));
+    };
+
+    script.src =
+      INVENTORY_API_URL +
+      "&callback=" + encodeURIComponent(callbackName);
+
+    document.head.appendChild(script);
+  });
+}
+
 async function syncInventoryFromGoogleSheets() {
   const status = document.getElementById("connectionStatus");
 
   try {
     status.textContent = "⏳ Google Sheets မှ ဒေတာယူနေပါသည်...";
 
-    const response = await fetch(INVENTORY_API_URL, {
-      method: "GET",
-      cache: "no-store"
-    });
+    const data = await getInventoryJSONP();
 
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
-    }
-
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error || "API Error");
+    if (!data || !data.success) {
+      throw new Error(data?.error || "API Error");
     }
 
     if (
@@ -255,6 +282,7 @@ async function syncInventoryFromGoogleSheets() {
     console.error("Inventory Sync Error:", error);
   }
 }
+
 
 </script>
 
