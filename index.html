@@ -143,30 +143,52 @@
 
 <script src="./db.js"></script>
 
+
 <script>
 async function testLocalDatabase() {
   const status = document.getElementById("connectionStatus");
 
   try {
-    const id = await savePendingTransaction({
-      type: "TEST",
-      productName: "စမ်းသပ်ပစ္စည်း",
-      quantity: 1
-    });
+    const testProduct = {
+      ProductID: "TEST-001",
+      ProductName: "စမ်းသပ်ပစ္စည်း",
+      Unit: "ခု"
+    };
 
-    const records = await getPendingTransactions();
+    await cacheProducts([testProduct]);
 
-    status.textContent =
-      "✅ Local Database အလုပ်လုပ်နေသည်။ စမ်းသပ်မှတ်တမ်း " +
-      records.length + " ခု သိမ်းထားသည်။";
+    await cacheStockSnapshot([{
+      ProductID: "TEST-001",
+      ProductName: "စမ်းသပ်ပစ္စည်း",
+      CurrentStock: 10
+    }]);
 
+    const products = await getCachedProducts();
+    const stock = await getCachedStockSnapshot();
+
+    const foundProduct = products.find(
+      p => p.productId === "TEST-001"
+    );
+
+    const foundStock = stock.find(
+      s => s.productId === "TEST-001"
+    );
+
+    if (foundProduct && foundStock) {
+      status.textContent =
+        "✅ Database V2 အောင်မြင်ပါသည်။ " +
+        "ပစ္စည်းစာရင်းနှင့် လက်ကျန်စာရင်း သိမ်းဆည်း/ပြန်ဖတ်နိုင်ပါသည်။";
+    } else {
+      status.textContent =
+        "⚠️ Database ဖွင့်နိုင်သော်လည်း စမ်းသပ်ဒေတာ မတွေ့ပါ။";
+    }
   } catch (error) {
-    status.textContent =
-      "❌ Local Database Error: " + error.message;
+    status.textContent = "❌ Database V2 Error: " + error.message;
     console.error(error);
   }
 }
 </script>
+
 
 <button
   onclick="testLocalDatabase()"
