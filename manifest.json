@@ -1,0 +1,14 @@
+
+{
+  "id": "./",
+  "name": "မူကထအိမ် Inventory System",
+  "short_name": "မူကထအိမ်",
+  "description": "မူကထအိမ် Inventory Management - Offline PWA",
+  "lang": "my",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1E293B"
+}
