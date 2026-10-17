@@ -187,6 +187,75 @@ async function testLocalDatabase() {
     console.error(error);
   }
 }
+  
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbzqp7JmZQAHKNeqANIXyoCYhARaAY3mM6sa7Blgv6xL3oJTql_pJ9u3JhlOcRHGVw58/exec?api=inventory";
+
+async function syncInventoryFromGoogleSheets() {
+  const status = document.getElementById("connectionStatus");
+
+  try {
+    status.textContent = "⏳ Google Sheets မှ ဒေတာယူနေပါသည်...";
+
+    const response = await fetch(INVENTORY_API_URL, {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("HTTP " + response.status);
+    }
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || "API Error");
+    }
+
+    if (
+      !Array.isArray(data.products) ||
+      !Array.isArray(data.stock)
+    ) {
+      throw new Error("ဒေတာပုံစံ မမှန်ပါ");
+    }
+
+    const stockById = new Map(
+      data.stock.map(item => [
+        String(item.ProductID || ""),
+        item
+      ])
+    );
+
+    const snapshots = data.products
+      .map(product => {
+        const id = String(product.ProductID || "");
+        const stock = stockById.get(id) || {};
+
+        return {
+          ProductID: id,
+          ProductName: product.ProductName || "",
+          Unit: product.Unit || "",
+          CurrentStock: Number(stock.CurrentStock) || 0,
+          AvgUnitCost: Number(stock.AvgUnitCost) || 0
+        };
+      })
+      .filter(item => item.ProductID);
+
+    await cacheProducts(data.products);
+    await cacheStockSnapshot(snapshots);
+
+    status.textContent =
+      "✅ Sync အောင်မြင်ပါသည်။ ပစ္စည်း " +
+      data.products.length +
+      " မျိုးကို Local Database ထဲ သိမ်းပြီးပါပြီ။";
+
+  } catch (error) {
+    status.textContent =
+      "❌ Sync မအောင်မြင်ပါ: " + error.message;
+
+    console.error("Inventory Sync Error:", error);
+  }
+}
+
 </script>
 
 
