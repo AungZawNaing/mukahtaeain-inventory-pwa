@@ -209,3 +209,79 @@ async function getCachedStockSnapshot() {
     tx.onerror = () => db.close();
   });
 }
+
+/* =========================================
+   OFFLINE TRANSACTION QUEUE HELPERS
+   ========================================= */
+
+// Queue ထဲရှိ မှတ်တမ်းတစ်ခု၏ အခြေအနေ ပြောင်းရန်
+async function updatePendingTransaction(id, updates) {
+  const db = await openInventoryDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_TRANSACTIONS, "readwrite");
+    const store = tx.objectStore(STORE_TRANSACTIONS);
+    const request = store.get(Number(id));
+
+    request.onsuccess = () => {
+      const record = request.result;
+
+      if (!record) {
+        tx.abort();
+        return;
+      }
+
+      store.put({
+        ...record,
+        ...updates,
+        id: record.id,
+        updatedAt: new Date().toISOString()
+      });
+    };
+
+    request.onerror = () => reject(request.error);
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve(true);
+    };
+
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error || new Error("Queue update မအောင်မြင်ပါ"));
+    };
+  });
+}
+
+// Queue ထဲမှ မှတ်တမ်းတစ်ခုကို ဖျက်ရန်
+// Sync အောင်မြင်ကြောင်း အတည်ပြုပြီးမှသာ အသုံးပြုပါ။
+async function deletePendingTransaction(id) {
+  return runStoreTransaction(
+    STORE_TRANSACTIONS,
+    "readwrite",
+    store => store.delete(Number(id))
+  );
+}
+
+// Sync မလုပ်ရသေးသော မှတ်တမ်းများကိုသာ ရယူရန်
+async function getUnSyncedTransactions() {
+  const transactions = await getPendingTransactions();
+
+  return transactions
+    .filter(item => item.syncStatus !== "SYNCED")
+    .sort((a, b) => a.id - b.id);
+}
+
+// Queue ထဲရှိ စုစုပေါင်း မှတ်တမ်းအရေအတွက်
+async function getPendingTransactionCount() {
+  const transactions = await getPendingTransactions();
+  return transactions.filter(
+    item => item.syncStatus !== "SYNCED"
+  ).length;
+}
+
