@@ -141,5 +141,38 @@
   }
 </script>
 
+<script src="./db.js"></script>
+
+<script>
+async function testLocalDatabase() {
+  const status = document.getElementById("connectionStatus");
+
+  try {
+    const id = await savePendingTransaction({
+      type: "TEST",
+      productName: "စမ်းသပ်ပစ္စည်း",
+      quantity: 1
+    });
+
+    const records = await getPendingTransactions();
+
+    status.textContent =
+      "✅ Local Database အလုပ်လုပ်နေသည်။ စမ်းသပ်မှတ်တမ်း " +
+      records.length + " ခု သိမ်းထားသည်။";
+
+  } catch (error) {
+    status.textContent =
+      "❌ Local Database Error: " + error.message;
+    console.error(error);
+  }
+}
+</script>
+
+<button
+  onclick="testLocalDatabase()"
+  style="margin-top:16px;padding:12px 18px;border:0;border-radius:10px;background:#1E293B;color:white;font-size:16px;">
+  Local Database စမ်းသပ်ရန်
+</button>
+
 </body>
 </html>
