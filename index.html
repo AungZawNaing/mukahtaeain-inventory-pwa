@@ -1,0 +1,129 @@
+
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1E293B">
+  <meta name="description"
+        content="မူကထအိမ် Inventory System Offline PWA">
+
+  <title>မူကထအိမ် Inventory</title>
+
+  <link rel="manifest" href="./manifest.json">
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #F8FAFC;
+      color: #1E293B;
+    }
+
+    .app {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    header {
+      background: #1E293B;
+      color: white;
+      padding: 22px;
+      border-radius: 14px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 8px;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: white;
+      border: 1px solid #CBD5E1;
+    }
+
+    .modules {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .module {
+      background: white;
+      padding: 18px 12px;
+      border: 1px solid #CBD5E1;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    .note {
+      margin-top: 18px;
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 360px) {
+      body {
+        padding: 12px;
+      }
+
+      .modules {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header>
+      <h1>မူကထအိမ်</h1>
+      <div>Inventory Management System</div>
+    </header>
+
+    <div class="status" id="connectionStatus">
+      ချိတ်ဆက်မှု အခြေအနေ စစ်ဆေးနေသည်...
+    </div>
+
+    <section class="modules">
+      <div class="module">📦<br>Inventory Dashboard</div>
+      <div class="module">📥<br>Stock IN</div>
+      <div class="module">📤<br>Stock OUT</div>
+      <div class="module">🗑️<br>Wastage</div>
+      <div class="module">📊<br>Reports</div>
+      <div class="module">🔄<br>Data Sync</div>
+    </section>
+
+    <p class="note">
+      ဤသည် Offline PWA အတွက် အခြေခံစမ်းသပ်မျက်နှာပြင်ဖြစ်သည်။
+      လက်ရှိ Inventory ဒေတာနှင့် မချိတ်ဆက်ရသေးပါ။
+    </p>
+  </main>
+
+  <script>
+    function updateConnectionStatus() {
+      const el = document.getElementById("connectionStatus");
+
+      el.textContent = navigator.onLine
+        ? "🟢 Internet ချိတ်ဆက်ထားသည်"
+        : "🟠 Offline ဖြစ်နေသည်";
+    }
+
+    window.addEventListener("online", updateConnectionStatus);
+    window.addEventListener("offline", updateConnectionStatus);
+
+    updateConnectionStatus();
+  </script>
+</body>
+</html>
