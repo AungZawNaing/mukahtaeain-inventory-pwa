@@ -365,7 +365,7 @@ document.getElementById("stockOutForm").addEventListener("submit", async event =
     const product = cachedProducts.find(p => String(p.ProductID ?? p.productId ?? p.id ?? "") === opt.value);
     const tx = {
       clientTxId: (crypto.randomUUID ? crypto.randomUUID() : "OUT-" + Date.now() + "-" + Math.random().toString(36).slice(2)),
-      date: new Date().toISOString().slice(0,10),
+      date: (() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); })(),
       productId: opt.value,
       productName: opt.textContent,
       quantity,
@@ -391,7 +391,7 @@ window.addEventListener("load", async () => {
   try { await loadCachedInventory(); await renderPendingList(); }
   catch (e) { console.warn("Local cache not ready:", e); }
 });
-</script>>
+</script>
 
 
 
