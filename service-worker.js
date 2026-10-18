@@ -1,10 +1,11 @@
 
-const CACHE_NAME = "mukahtaeain-pwa-v2";
+const CACHE_NAME = "mukahtaeain-pwa-v3";
 
 const APP_FILES = [
   "./",
   "./index.html",
-  "./manifest.json"
+  "./manifest.json",
+  "./db.js"
 ];
 
 // Install: cache the basic app files.
