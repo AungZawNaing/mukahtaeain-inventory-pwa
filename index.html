@@ -178,7 +178,7 @@
             <option>အအေး</option>
           </select>
         </label>
-        <div class="small">မှတ်ချက် — Offline မှတ်တမ်းကို ဖုန်းထဲတွင်သာ သိမ်းပါမည်။ Google Sheets သို့ Sync API မချိတ်ဆက်ရသေးပါ။</div>
+        <div class="small">မှတ်ချက် — Offline မှတ်တမ်းများကို ဖုန်းထဲတွင် အရင်သိမ်းပြီး Data Sync ခလုတ်ဖြင့် Google Sheets သို့ ပို့ပါမည်။</div>
         <div class="actions">
           <button class="primary" type="submit" id="saveStockOutBtn">📱 ဖုန်းထဲ သိမ်းမယ်</button>
           <button type="button" id="closeStockOutBtn">ပိတ်ရန်</button>
@@ -189,7 +189,7 @@
       <div id="pendingList" class="small">ဖတ်နေသည်...</div>
     </section>
     <p class="note">
-      Stock OUT Offline UI စမ်းသပ်အဆင့်ဖြစ်သည်။ Stock IN၊ Wastage၊ Reports နှင့် Google Sheets Sync API ကို မချိတ်ဆက်ရသေးပါ။
+      စမ်းသပ်အဆင့် — Offline Stock OUT နှင့် Google Sheets Sync ကို စမ်းသပ်နေပါသည်။ Stock IN၊ Wastage နှင့် Reports များ မချိတ်ဆက်ရသေးပါ။
     </p>
   </main>
 
@@ -317,7 +317,111 @@ async function syncInventoryFromGoogleSheets() {
     console.error(error);
   }
 }
-document.getElementById("syncInventoryBtn").addEventListener("click", syncInventoryFromGoogleSheets);
+
+// Pending Stock OUT ကို Google Apps Script doPost(e) သို့ အစဉ်လိုက် ပို့ရန်.
+// Server success:true ပြန်ပေးမှသာ SYNCED ပြောင်းမည်။ Response/CORS error ဖြစ်ပါက
+// PENDING အဖြစ်ပြန်ထားမည်။ Server က လက်ခံပြီး response ပျောက်သွားလျှင် clientTxId
+// duplicate protection ဖြင့် နောက်တစ်ကြိမ်ပို့ရာတွင် ထပ်မံစာရင်းမဝင်စေရန် ရည်ရွယ်သည်။
+async function syncPendingStockOuts() {
+  if (!navigator.onLine) {
+    throw new Error("Offline ဖြစ်နေပါသည်။ Internet ချိတ်ပြီးမှ Sync လုပ်ပါ။");
+  }
+
+  const status = document.getElementById("connectionStatus");
+  const items = await getUnSyncedTransactions();
+  let synced = 0;
+  let failed = 0;
+
+  for (const item of items) {
+    if (String(item.transactionType || "").toUpperCase() !== "STOCK_OUT") {
+      // အခြား Transaction Type ကို ဒီ endpoint သို့ မပို့ပါ။
+      continue;
+    }
+
+    await updatePendingTransaction(item.id, { syncStatus: "SYNCING", lastSyncError: "" });
+
+    try {
+      const payload = {
+        transactionType: "STOCK_OUT",
+        clientTxId: item.clientTxId,
+        date: item.date,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit,
+        user: item.user
+      };
+
+      const response = await fetch(INVENTORY_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        redirect: "follow"
+      });
+
+      if (!response.ok) {
+        throw new Error("Server HTTP " + response.status);
+      }
+
+      const result = await response.json();
+      if (!result || result.success !== true) {
+        throw new Error(result?.message || result?.error || "Server က success:true မပြန်ပါ");
+      }
+
+      await updatePendingTransaction(item.id, {
+        syncStatus: "SYNCED",
+        syncedAt: new Date().toISOString(),
+        serverTxId: result.txId || "",
+        lastSyncError: ""
+      });
+      synced++;
+    } catch (error) {
+      await updatePendingTransaction(item.id, {
+        syncStatus: "PENDING",
+        lastSyncError: String(error.message || error)
+      });
+      failed++;
+      console.error("Stock OUT sync failed:", item.clientTxId, error);
+      // တစ်ခုမအောင်မြင်လျှင် နောက်တစ်ခုကို ဆက်မပို့ဘဲ duplicate/order risk လျှော့ချမည်။
+      break;
+    }
+  }
+
+  await renderPendingList();
+  const remaining = await getUnSyncedTransactions();
+  if (failed) {
+    status.textContent = "⚠️ Stock OUT " + synced + " ခု Sync အောင်မြင်၊ အမှား " + failed +
+      " ခုရှိသည်။ Pending မှတ်တမ်းများကို မဖျက်ထားပါ။";
+  } else if (remaining.length) {
+    status.textContent = "ℹ️ Stock OUT Sync ပြီးပါပြီ။ အခြား Transaction Type များရှိပါက မပို့ရသေးပါ။";
+  } else {
+    status.textContent = "✅ Pending Stock OUT မရှိတော့ပါ။ Google Sheets မှ လက်ကျန်အသစ် ပြန်ယူနေပါသည်...";
+  }
+  return { synced, failed, remaining: remaining.length };
+}
+
+async function handleDataSync() {
+  const btn = document.getElementById("syncInventoryBtn");
+  btn.disabled = true;
+  try {
+    const result = await syncPendingStockOuts();
+    // Pending မကျန်တော့မှသာ server snapshot ကို ပြန်ယူမည်။
+    // မအောင်မြင်သေးသော local deductions များ မပျောက်စေရန်ဖြစ်သည်။
+    if (result.remaining === 0 && result.failed === 0) {
+      await syncInventoryFromGoogleSheets();
+    }
+  } catch (error) {
+    document.getElementById("connectionStatus").textContent =
+      "❌ Transaction Sync မအောင်မြင်ပါ: " + String(error.message || error) +
+      " — Pending မှတ်တမ်းများကို ဖုန်းထဲတွင် ထားရှိထားပါသည်။";
+    console.error(error);
+  } finally {
+    btn.disabled = false;
+    await renderPendingList().catch(console.error);
+  }
+}
+
+document.getElementById("syncInventoryBtn").addEventListener("click", handleDataSync);
 document.getElementById("openStockOutBtn").addEventListener("click", async () => {
   document.getElementById("stockOutPanel").hidden = false;
   document.getElementById("stockOutMessage").textContent = "";
