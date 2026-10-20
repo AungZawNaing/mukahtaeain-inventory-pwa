@@ -112,6 +112,10 @@ async function cacheProducts(products) {
     const tx = db.transaction(STORE_PRODUCTS, "readwrite");
     const store = tx.objectStore(STORE_PRODUCTS);
 
+    // Full snapshot refresh: remove products that no longer exist in the server response.
+    // Clear and put happen in the same IndexedDB transaction, so a failed write rolls back.
+    store.clear();
+
     for (const product of products) {
       const productId =
         product.ProductID ??
@@ -163,6 +167,10 @@ async function cacheStockSnapshot(items) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_STOCK, "readwrite");
     const store = tx.objectStore(STORE_STOCK);
+
+    // Replace the old stock snapshot rather than leaving removed products behind.
+    // Clear and put happen in the same IndexedDB transaction, so a failed write rolls back.
+    store.clear();
 
     for (const item of items) {
       const productId =
