@@ -240,6 +240,7 @@ window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
 updateConnectionStatus();
 
+
 async function getInventoryJSONP() {
   const response = await fetch(INVENTORY_API_URL, {
     method: "GET",
@@ -252,7 +253,15 @@ async function getInventoryJSONP() {
     throw new Error("Inventory API HTTP " + response.status);
   }
 
-  return await response.json();
+  const data = await response.json();
+
+  if (!data || data.success !== true) {
+    throw new Error(
+      data?.message || "Inventory API မှ အချက်အလက် မရရှိပါ"
+    );
+  }
+
+  return data;
 }
 
 async function loadCachedInventory() {
