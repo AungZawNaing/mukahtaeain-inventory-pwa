@@ -506,6 +506,30 @@ window.addEventListener("load", async () => {
   try { await loadCachedInventory(); await renderPendingList(); }
   catch (e) { console.warn("Local cache not ready:", e); }
 });
+  
+async function testPwaPostConnection() {
+  const response = await fetch(INVENTORY_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      transactionType: "PWA_PING"
+    }),
+    redirect: "follow"
+  });
+
+  const text = await response.text();
+
+  console.log("HTTP status:", response.status);
+  console.log("Response body:", text);
+
+  return {
+    status: response.status,
+    body: text
+  };
+}
+
 </script>
 
 
