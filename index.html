@@ -64,8 +64,61 @@
       border: 1px solid #CBD5E1;
       border-radius: 12px;
       text-align: center;
+      font: inherit;
+      cursor: pointer;
+      color: inherit;
+      min-height: 92px;
     }
-
+    .module:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid #60A5FA;
+      outline-offset: 2px;
+    }
+    .module:disabled { opacity: .55; cursor: not-allowed; }
+    .panel {
+      margin-top: 18px;
+      background: white;
+      padding: 18px;
+      border: 1px solid #CBD5E1;
+      border-radius: 14px;
+    }
+    .panel[hidden] { display: none; }
+    .field { display: block; margin: 14px 0; font-weight: 600; }
+    .field select, .field input {
+      display: block;
+      width: 100%;
+      margin-top: 7px;
+      padding: 13px;
+      border: 1px solid #94A3B8;
+      border-radius: 9px;
+      background: white;
+      color: #0F172A;
+      font: inherit;
+      min-height: 46px;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .actions button, .secondary-button {
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 9px;
+      background: #1E293B;
+      color: white;
+      font: inherit;
+      cursor: pointer;
+    }
+    .actions button.primary { background: #15803D; }
+    .actions button:disabled { opacity: .55; }
+    .stock-info, .message {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 9px;
+      background: #F1F5F9;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+    .message.error { background: #FEE2E2; color: #991B1B; }
+    .message.success { background: #DCFCE7; color: #166534; }
+    .pending-item { border-bottom: 1px solid #E2E8F0; padding: 10px 0; line-height: 1.6; }
+    .small { font-size: 13px; color: #475569; }
     .note {
       margin-top: 18px;
       color: #475569;
@@ -97,17 +150,46 @@
     </div>
 
     <section class="modules">
-      <div class="module">📦<br>Inventory Dashboard</div>
-      <div class="module">📥<br>Stock IN</div>
-      <div class="module">📤<br>Stock OUT</div>
-      <div class="module">🗑️<br>Wastage</div>
-      <div class="module">📊<br>Reports</div>
-      <div class="module">🔄<br>Data Sync</div>
+      <button class="module" type="button" disabled>📦<br>Inventory Dashboard</button>
+      <button class="module" type="button" disabled>📥<br>Stock IN</button>
+      <button class="module" type="button" id="openStockOutBtn">📤<br>Stock OUT</button>
+      <button class="module" type="button" disabled>🗑️<br>Wastage</button>
+      <button class="module" type="button" disabled>📊<br>Reports</button>
+      <button class="module" type="button" id="syncInventoryBtn">🔄<br>Data Sync</button>
     </section>
 
+    <section class="panel" id="stockOutPanel" hidden>
+      <h2>📤 Stock OUT</h2>
+      <p class="small">ဒီဖုန်းထဲတွင် သိမ်းထားသော Product/Stock စာရင်းကို အသုံးပြုပါမည်။ လက်ကျန်စာရင်းဟောင်းဖြစ်နိုင်ပါက Online Sync အရင်လုပ်ပါ။</p>
+      <form id="stockOutForm">
+        <label class="field">ပစ္စည်းအမည်
+          <select id="productSelect" required>
+            <option value="">ပစ္စည်းစာရင်း ဖတ်နေသည်...</option>
+          </select>
+        </label>
+        <div class="stock-info" id="stockInfo">ပစ္စည်းရွေးချယ်ပါ။</div>
+        <label class="field">အရေအတွက်
+          <input id="quantityInput" type="number" min="0.01" step="any" inputmode="decimal" required placeholder="ဥပမာ - 1.5">
+        </label>
+        <label class="field">အသုံးပြုဌာန
+          <select id="departmentSelect" required>
+            <option value="">ဌာနရွေးပါ</option>
+            <option>မီးဖိုချောင်</option>
+            <option>အအေး</option>
+          </select>
+        </label>
+        <div class="small">မှတ်ချက် — Offline မှတ်တမ်းများကို ဖုန်းထဲတွင် အရင်သိမ်းပြီး Data Sync ခလုတ်ဖြင့် Google Sheets သို့ ပို့ပါမည်။</div>
+        <div class="actions">
+          <button class="primary" type="submit" id="saveStockOutBtn">📱 ဖုန်းထဲ သိမ်းမယ်</button>
+          <button type="button" id="closeStockOutBtn">ပိတ်ရန်</button>
+        </div>
+        <div class="message" id="stockOutMessage" role="status" aria-live="polite"></div>
+      </form>
+      <h3>Pending Stock OUT</h3>
+      <div id="pendingList" class="small">ဖတ်နေသည်...</div>
+    </section>
     <p class="note">
-      ဤသည် Offline PWA အတွက် အခြေခံစမ်းသပ်မျက်နှာပြင်ဖြစ်သည်။
-      လက်ရှိ Inventory ဒေတာနှင့် မချိတ်ဆက်ရသေးပါ။
+      စမ်းသပ်အဆင့် — Offline Stock OUT နှင့် Google Sheets Sync ကို စမ်းသပ်နေပါသည်။ Stock IN၊ Wastage နှင့် Reports များ မချိတ်ဆက်ရသေးပါ။
     </p>
   </main>
 
@@ -145,156 +227,313 @@
 
 
 <script>
-async function testLocalDatabase() {
-  const status = document.getElementById("connectionStatus");
+const INVENTORY_API_URL = "https://mukahtaeain-inventory-api.aznaing07.workers.dev";
+let cachedProducts = [];
+let cachedStocks = [];
 
-  try {
-    const testProduct = {
-      ProductID: "TEST-001",
-      ProductName: "စမ်းသပ်ပစ္စည်း",
-      Unit: "ခု"
-    };
-
-    await cacheProducts([testProduct]);
-
-    await cacheStockSnapshot([{
-      ProductID: "TEST-001",
-      ProductName: "စမ်းသပ်ပစ္စည်း",
-      CurrentStock: 10
-    }]);
-
-    const products = await getCachedProducts();
-    const stock = await getCachedStockSnapshot();
-
-    const foundProduct = products.find(
-      p => p.productId === "TEST-001"
-    );
-
-    const foundStock = stock.find(
-      s => s.productId === "TEST-001"
-    );
-
-    if (foundProduct && foundStock) {
-      status.textContent =
-        "✅ Database V2 အောင်မြင်ပါသည်။ " +
-        "ပစ္စည်းစာရင်းနှင့် လက်ကျန်စာရင်း သိမ်းဆည်း/ပြန်ဖတ်နိုင်ပါသည်။";
-    } else {
-      status.textContent =
-        "⚠️ Database ဖွင့်နိုင်သော်လည်း စမ်းသပ်ဒေတာ မတွေ့ပါ။";
-    }
-  } catch (error) {
-    status.textContent = "❌ Database V2 Error: " + error.message;
-    console.error(error);
-  }
+function updateConnectionStatus() {
+  document.getElementById("connectionStatus").textContent = navigator.onLine
+    ? "🟢 Internet ချိတ်ဆက်ထားသည်"
+    : "🟠 Offline ဖြစ်နေသည် — ဖုန်းထဲသိမ်းနိုင်သည်";
 }
-  
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbzqp7JmZQAHKNeqANIXyoCYhARaAY3mM6sa7Blgv6xL3oJTql_pJ9u3JhlOcRHGVw58/exec?api=inventory";
+window.addEventListener("online", updateConnectionStatus);
+window.addEventListener("offline", updateConnectionStatus);
+updateConnectionStatus();
 
 
-function getInventoryJSONP() {
-  return new Promise((resolve, reject) => {
-    const callbackName =
-      "inventoryCallback_" + Date.now();
-
-    const script = document.createElement("script");
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error("API တုံ့ပြန်မှု အချိန်ကုန်သွားပါသည်"));
-    }, 20000);
-
-    function cleanup() {
-      clearTimeout(timeout);
-      delete window[callbackName];
-      script.remove();
+async function getInventoryJSONP() {
+  const response = await fetch(INVENTORY_API_URL, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json"
     }
-
-    window[callbackName] = (data) => {
-      cleanup();
-      resolve(data);
-    };
-
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("Google Apps Script API ကို မရယူနိုင်ပါ"));
-    };
-
-    script.src =
-      INVENTORY_API_URL +
-      "&callback=" + encodeURIComponent(callbackName);
-
-    document.head.appendChild(script);
   });
+
+  if (!response.ok) {
+    throw new Error("Inventory API HTTP " + response.status);
+  }
+
+  const data = await response.json();
+
+  if (!data || data.success !== true) {
+    throw new Error(
+      data?.message || "Inventory API မှ အချက်အလက် မရရှိပါ"
+    );
+  }
+
+  return data;
 }
+
+async function loadCachedInventory() {
+  cachedProducts = await getCachedProducts();
+  cachedStocks = await getCachedStockSnapshot();
+  const select = document.getElementById("productSelect");
+  const current = select.value;
+  select.replaceChildren(new Option("ပစ္စည်းရွေးပါ", ""));
+  const stockMap = new Map(cachedStocks.map(s => [String(s.productId ?? s.ProductID ?? ""), s]));
+  cachedProducts
+    .filter(p => p.Active !== false && String(p.Active).toLowerCase() !== "false")
+    .sort((a,b) => String(a.ProductName || "").localeCompare(String(b.ProductName || ""), "my"))
+    .forEach(p => {
+      const id = String(p.ProductID ?? p.productId ?? p.id ?? "");
+      if (!id) return;
+      const name = String(p.ProductName ?? p.productName ?? p.Name ?? id);
+      const stock = stockMap.get(id);
+      const opt = new Option(name, id);
+      opt.dataset.unit = String(p.Unit ?? p.unit ?? "");
+      opt.dataset.stock = stock ? String(stock.CurrentStock ?? stock.currentStock ?? stock.Stock ?? 0) : "";
+      select.add(opt);
+    });
+  if ([...select.options].some(o => o.value === current)) select.value = current;
+  updateSelectedStock();
+}
+
+function updateSelectedStock() {
+  const select = document.getElementById("productSelect");
+  const opt = select.selectedOptions[0];
+  const stock = opt && opt.value ? opt.dataset.stock : "";
+  document.getElementById("stockInfo").textContent = !opt || !opt.value
+    ? "ပစ္စည်းရွေးချယ်ပါ။"
+    : stock === ""
+      ? "⚠️ ဒီပစ္စည်း၏ လက်ကျန်ကို Local Database တွင် မတွေ့ပါ။ Save မလုပ်နိုင်ပါ။"
+      : "လက်ကျန်: " + stock + " " + (opt.dataset.unit || "");
+}
+document.getElementById("productSelect").addEventListener("change", updateSelectedStock);
 
 async function syncInventoryFromGoogleSheets() {
   const status = document.getElementById("connectionStatus");
-
+  if (!navigator.onLine) {
+    status.textContent = "🟠 Offline ဖြစ်နေပါသည်။ Online ဖြစ်မှ Sync လုပ်နိုင်ပါမည်။";
+    return;
+  }
   try {
-    status.textContent = "⏳ Google Sheets မှ ဒေတာယူနေပါသည်...";
-
+    status.textContent = "⏳ Google Sheets မှ Product/Stock ယူနေပါသည်...";
     const data = await getInventoryJSONP();
-
-    if (!data || !data.success) {
-      throw new Error(data?.error || "API Error");
+    if (!data || !data.success || !Array.isArray(data.products) || !Array.isArray(data.stock)) {
+      throw new Error(data?.error || "API မှန်ကန်သော ဒေတာမပြန်ပါ");
     }
-
-    if (
-      !Array.isArray(data.products) ||
-      !Array.isArray(data.stock)
-    ) {
-      throw new Error("ဒေတာပုံစံ မမှန်ပါ");
-    }
-
-    const stockById = new Map(
-      data.stock.map(item => [
-        String(item.ProductID || ""),
-        item
-      ])
-    );
-
-    const snapshots = data.products
-      .map(product => {
-        const id = String(product.ProductID || "");
-        const stock = stockById.get(id) || {};
-
-        return {
-          ProductID: id,
-          ProductName: product.ProductName || "",
-          Unit: product.Unit || "",
-          CurrentStock: Number(stock.CurrentStock) || 0,
-          AvgUnitCost: Number(stock.AvgUnitCost) || 0
-        };
-      })
-      .filter(item => item.ProductID);
-
+    const stockById = new Map(data.stock.map(item => [String(item.ProductID || ""), item]));
+    const snapshots = data.products.map(product => {
+      const id = String(product.ProductID || "");
+      const s = stockById.get(id) || {};
+      return { ProductID:id, ProductName:product.ProductName || "", Unit:product.Unit || "",
+        CurrentStock:Number(s.CurrentStock) || 0, AvgUnitCost:Number(s.AvgUnitCost) || 0 };
+    }).filter(s => s.ProductID);
     await cacheProducts(data.products);
     await cacheStockSnapshot(snapshots);
-
-    status.textContent =
-      "✅ Sync အောင်မြင်ပါသည်။ ပစ္စည်း " +
-      data.products.length +
-      " မျိုးကို Local Database ထဲ သိမ်းပြီးပါပြီ။";
-
+    await loadCachedInventory();
+    status.textContent = "✅ Product " + data.products.length + " မျိုးနှင့် Stock စာရင်းကို ဖုန်းထဲ Sync လုပ်ပြီးပါပြီ။";
   } catch (error) {
-    status.textContent =
-      "❌ Sync မအောင်မြင်ပါ: " + error.message;
-
-    console.error("Inventory Sync Error:", error);
+    status.textContent = "❌ Sync မအောင်မြင်ပါ: " + error.message;
+    console.error(error);
   }
 }
 
+// Pending Stock OUT ကို Google Apps Script doPost(e) သို့ အစဉ်လိုက် ပို့ရန်.
+// Server success:true ပြန်ပေးမှသာ SYNCED ပြောင်းမည်။ Response/CORS error ဖြစ်ပါက
+// PENDING အဖြစ်ပြန်ထားမည်။ Server က လက်ခံပြီး response ပျောက်သွားလျှင် clientTxId
+// duplicate protection ဖြင့် နောက်တစ်ကြိမ်ပို့ရာတွင် ထပ်မံစာရင်းမဝင်စေရန် ရည်ရွယ်သည်။
+async function syncPendingStockOuts() {
+  if (!navigator.onLine) {
+    throw new Error("Offline ဖြစ်နေပါသည်။ Internet ချိတ်ပြီးမှ Sync လုပ်ပါ။");
+  }
+
+  const status = document.getElementById("connectionStatus");
+  const items = await getUnSyncedTransactions();
+  let synced = 0;
+  let failed = 0;
+
+  for (const item of items) {
+    if (String(item.transactionType || "").toUpperCase() !== "STOCK_OUT") {
+      // အခြား Transaction Type ကို ဒီ endpoint သို့ မပို့ပါ။
+      continue;
+    }
+
+    await updatePendingTransaction(item.id, { syncStatus: "SYNCING", lastSyncError: "" });
+
+    try {
+      const payload = {
+        transactionType: "STOCK_OUT",
+        clientTxId: item.clientTxId,
+        date: item.date,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit,
+        user: item.user
+      };
+
+      const response = await fetch(INVENTORY_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        redirect: "follow"
+      });
+
+      if (!response.ok) {
+        throw new Error("Server HTTP " + response.status);
+      }
+
+      const result = await response.json();
+      if (!result || result.success !== true) {
+        throw new Error(result?.message || result?.error || "Server က success:true မပြန်ပါ");
+      }
+
+      await updatePendingTransaction(item.id, {
+        syncStatus: "SYNCED",
+        syncedAt: new Date().toISOString(),
+        serverTxId: result.txId || "",
+        lastSyncError: ""
+      });
+      synced++;
+    } catch (error) {
+      await updatePendingTransaction(item.id, {
+        syncStatus: "PENDING",
+        lastSyncError: String(error.message || error)
+      });
+      failed++;
+      console.error("Stock OUT sync failed:", item.clientTxId, error);
+      // တစ်ခုမအောင်မြင်လျှင် နောက်တစ်ခုကို ဆက်မပို့ဘဲ duplicate/order risk လျှော့ချမည်။
+      break;
+    }
+  }
+
+  await renderPendingList();
+  const remaining = await getUnSyncedTransactions();
+  if (failed) {
+    status.textContent = "⚠️ Stock OUT " + synced + " ခု Sync အောင်မြင်၊ အမှား " + failed +
+      " ခုရှိသည်။ Pending မှတ်တမ်းများကို မဖျက်ထားပါ။";
+  } else if (remaining.length) {
+    status.textContent = "ℹ️ Stock OUT Sync ပြီးပါပြီ။ အခြား Transaction Type များရှိပါက မပို့ရသေးပါ။";
+  } else {
+    status.textContent = "✅ Pending Stock OUT မရှိတော့ပါ။ Google Sheets မှ လက်ကျန်အသစ် ပြန်ယူနေပါသည်...";
+  }
+  return { synced, failed, remaining: remaining.length };
+}
+
+async function handleDataSync() {
+  const btn = document.getElementById("syncInventoryBtn");
+  btn.disabled = true;
+  try {
+    const result = await syncPendingStockOuts();
+    // Pending မကျန်တော့မှသာ server snapshot ကို ပြန်ယူမည်။
+    // မအောင်မြင်သေးသော local deductions များ မပျောက်စေရန်ဖြစ်သည်။
+    if (result.remaining === 0 && result.failed === 0) {
+      await syncInventoryFromGoogleSheets();
+    }
+  } catch (error) {
+    document.getElementById("connectionStatus").textContent =
+      "❌ Transaction Sync မအောင်မြင်ပါ: " + String(error.message || error) +
+      " — Pending မှတ်တမ်းများကို ဖုန်းထဲတွင် ထားရှိထားပါသည်။";
+    console.error(error);
+  } finally {
+    btn.disabled = false;
+    await renderPendingList().catch(console.error);
+  }
+}
+
+document.getElementById("syncInventoryBtn").addEventListener("click", handleDataSync);
+document.getElementById("openStockOutBtn").addEventListener("click", async () => {
+  document.getElementById("stockOutPanel").hidden = false;
+  document.getElementById("stockOutMessage").textContent = "";
+  try { await loadCachedInventory(); await renderPendingList(); }
+  catch (e) { showStockOutMessage("Local Database ကို ဖတ်မရပါ: " + e.message, "error"); }
+  document.getElementById("stockOutPanel").scrollIntoView({behavior:"smooth",block:"start"});
+});
+document.getElementById("closeStockOutBtn").addEventListener("click", () => {
+  document.getElementById("stockOutPanel").hidden = true;
+});
+
+function showStockOutMessage(message, type) {
+  const el = document.getElementById("stockOutMessage");
+  el.textContent = message;
+  el.className = "message" + (type ? " " + type : "");
+}
+async function renderPendingList() {
+  const list = document.getElementById("pendingList");
+  const items = await getUnSyncedTransactions();
+  if (!items.length) { list.textContent = "Pending မှတ်တမ်း မရှိသေးပါ။"; return; }
+  list.replaceChildren();
+  items.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "pending-item";
+    row.textContent = (item.productName || item.ProductName || item.productId) + " — " +
+      item.quantity + " " + (item.unit || "") + " · " + (item.user || "ဌာနမသိ") +
+      " · " + (item.syncStatus || "PENDING");
+    list.appendChild(row);
+  });
+}
+document.getElementById("stockOutForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const btn = document.getElementById("saveStockOutBtn");
+  const select = document.getElementById("productSelect");
+  const opt = select.selectedOptions[0];
+  const quantity = Number(document.getElementById("quantityInput").value);
+  const department = document.getElementById("departmentSelect").value;
+  if (!opt || !opt.value) return showStockOutMessage("ပစ္စည်းရွေးပါ။", "error");
+  if (!Number.isFinite(quantity) || quantity <= 0) return showStockOutMessage("Quantity ကို 0 ထက်ကြီးအောင် ထည့်ပါ။", "error");
+  if (!department) return showStockOutMessage("အသုံးပြုဌာန ရွေးပါ။", "error");
+  if (opt.dataset.stock === "") return showStockOutMessage("လက်ကျန်ကို Local Database မှာ မတွေ့ပါ။ Online Sync လုပ်ပါ။", "error");
+  btn.disabled = true;
+  btn.textContent = "⏳ ဖုန်းထဲ သိမ်းနေသည်...";
+  try {
+    const product = cachedProducts.find(p => String(p.ProductID ?? p.productId ?? p.id ?? "") === opt.value);
+    const tx = {
+      clientTxId: (crypto.randomUUID ? crypto.randomUUID() : "OUT-" + Date.now() + "-" + Math.random().toString(36).slice(2)),
+      date: (() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); })(),
+      productId: opt.value,
+      productName: opt.textContent,
+      quantity,
+      unit: opt.dataset.unit || "",
+      user: department,
+      syncStatus: "PENDING"
+    };
+    const result = await saveOfflineStockOut(tx);
+    opt.dataset.stock = String(result.afterStock);
+    document.getElementById("quantityInput").value = "";
+    updateSelectedStock();
+    await renderPendingList();
+    showStockOutMessage("✅ ဖုန်းထဲ သိမ်းပြီးပါပြီ။ လက်ကျန်အသစ်: " + result.afterStock + " " + tx.unit + ". Google Sheets သို့ Sync မလုပ်ရသေးပါ။", "success");
+  } catch (error) {
+    showStockOutMessage("❌ သိမ်းမရပါ: " + error.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "📱 ဖုန်းထဲ သိမ်းမယ်";
+  }
+});
+
+window.addEventListener("load", async () => {
+  try { await loadCachedInventory(); await renderPendingList(); }
+  catch (e) { console.warn("Local cache not ready:", e); }
+});
+  
+async function testPwaPostConnection() {
+  const response = await fetch(INVENTORY_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      transactionType: "PWA_PING"
+    }),
+    redirect: "follow"
+  });
+
+  const text = await response.text();
+
+  console.log("HTTP status:", response.status);
+  console.log("Response body:", text);
+
+  return {
+    status: response.status,
+    body: text
+  };
+}
 
 </script>
 
 
-<button
-  onclick="testLocalDatabase()"
-  style="margin-top:16px;padding:12px 18px;border:0;border-radius:10px;background:#1E293B;color:white;font-size:16px;">
-  Local Database စမ်းသပ်ရန်
-</button>
-  <button onclick="syncInventoryFromGoogleSheets()">
-  Google Sheets မှ Sync လုပ်ရန်
-</button>
+
 
 </body>
 </html>
