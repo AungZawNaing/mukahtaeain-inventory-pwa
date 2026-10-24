@@ -95,6 +95,32 @@
       font: inherit;
       min-height: 46px;
     }
+    .product-results {
+      margin-top: 6px;
+      border: 1px solid #CBD5E1;
+      border-radius: 9px;
+      overflow: hidden;
+      max-height: 280px;
+      overflow-y: auto;
+      background: white;
+    }
+    .product-results[hidden] { display: none; }
+    .product-result {
+      display: block;
+      width: 100%;
+      padding: 11px 12px;
+      border: 0;
+      border-bottom: 1px solid #E2E8F0;
+      background: white;
+      color: #0F172A;
+      text-align: left;
+      font: inherit;
+      cursor: pointer;
+    }
+    .product-result:last-child { border-bottom: 0; }
+    .product-result:active { background: #DCFCE7; }
+    .product-result small { display: block; color: #64748B; margin-top: 3px; font-size: 12px; }
+    .product-no-results { padding: 12px; color: #64748B; font-size: 14px; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
     .actions button, .secondary-button {
       padding: 12px 16px;
@@ -163,13 +189,15 @@
       <p class="small">ဒီဖုန်းထဲတွင် သိမ်းထားသော Product/Stock စာရင်းကို အသုံးပြုပါမည်။ လက်ကျန်စာရင်းဟောင်းဖြစ်နိုင်ပါက Online Sync အရင်လုပ်ပါ။</p>
       <form id="stockOutForm">
         <label class="field">ပစ္စည်းအမည်
-          <select id="productSelect" required>
+          <input id="productSearch" type="search" autocomplete="off" placeholder="ပစ္စည်းအမည် ရိုက်ရှာပါ..." aria-label="ပစ္စည်းအမည် ရိုက်ရှာရန်">
+          <div id="productSearchResults" class="product-results" role="listbox" aria-label="ရှာဖွေတွေ့ရှိသော ပစ္စည်းများ" hidden></div>
+          <select id="productSelect" required hidden>
             <option value="">ပစ္စည်းစာရင်း ဖတ်နေသည်...</option>
           </select>
         </label>
         <div class="stock-info" id="stockInfo">ပစ္စည်းရွေးချယ်ပါ။</div>
         <label class="field">အရေအတွက်
-          <input id="quantityInput" type="number" min="0.01" step="any" inputmode="decimal" required placeholder="ဥပမာ - 1.5">
+          <input id="quantityInput" type="text" inputmode="decimal" autocomplete="off" required placeholder="ပမာဏကို ရိုက်ထည့်ပါ၊ ဥပမာ - 1.5">
         </label>
         <label class="field">အသုံးပြုဌာန
           <select id="departmentSelect" required>
@@ -285,8 +313,68 @@ async function loadCachedInventory() {
       select.add(opt);
     });
   if ([...select.options].some(o => o.value === current)) select.value = current;
+  const selected = select.selectedOptions[0];
+  const search = document.getElementById("productSearch");
+  if (selected && selected.value && !search.value) search.value = selected.textContent;
+  renderProductSearchResults(search.value, false);
   updateSelectedStock();
 }
+
+function renderProductSearchResults(query = "", show = true) {
+  const search = document.getElementById("productSearch");
+  const results = document.getElementById("productSearchResults");
+  const select = document.getElementById("productSelect");
+  const q = String(query || "").trim().toLocaleLowerCase();
+  results.replaceChildren();
+
+  const options = [...select.options].filter(o => o.value);
+  const matches = options.filter(o =>
+    !q ||
+    o.textContent.toLocaleLowerCase().includes(q) ||
+    o.value.toLocaleLowerCase().includes(q)
+  ).slice(0, 20);
+
+  if (!matches.length) {
+    const empty = document.createElement("div");
+    empty.className = "product-no-results";
+    empty.textContent = "ကိုက်ညီသော ပစ္စည်း မတွေ့ပါ။ စာလုံးပြန်စစ်ပါ။";
+    results.appendChild(empty);
+  } else {
+    matches.forEach(opt => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "product-result";
+      button.setAttribute("role", "option");
+      const name = document.createElement("span");
+      name.textContent = opt.textContent;
+      const meta = document.createElement("small");
+      meta.textContent = opt.value + (opt.dataset.unit ? " · " + opt.dataset.unit : "");
+      button.append(name, meta);
+      button.addEventListener("click", () => {
+        select.value = opt.value;
+        search.value = opt.textContent;
+        results.hidden = true;
+        updateSelectedStock();
+      });
+      results.appendChild(button);
+    });
+  }
+  results.hidden = !show;
+}
+
+document.getElementById("productSearch").addEventListener("input", event => {
+  document.getElementById("productSelect").value = "";
+  updateSelectedStock();
+  renderProductSearchResults(event.target.value, true);
+});
+document.getElementById("productSearch").addEventListener("focus", event => {
+  renderProductSearchResults(event.target.value, true);
+});
+document.addEventListener("click", event => {
+  const search = document.getElementById("productSearch");
+  const results = document.getElementById("productSearchResults");
+  if (event.target !== search && !results.contains(event.target)) results.hidden = true;
+});
 
 function updateSelectedStock() {
   const select = document.getElementById("productSelect");
@@ -468,7 +556,8 @@ document.getElementById("stockOutForm").addEventListener("submit", async event =
   const btn = document.getElementById("saveStockOutBtn");
   const select = document.getElementById("productSelect");
   const opt = select.selectedOptions[0];
-  const quantity = Number(document.getElementById("quantityInput").value);
+  const quantityText = document.getElementById("quantityInput").value.trim();
+  const quantity = Number(quantityText);
   const department = document.getElementById("departmentSelect").value;
   if (!opt || !opt.value) return showStockOutMessage("ပစ္စည်းရွေးပါ။", "error");
   if (!Number.isFinite(quantity) || quantity <= 0) return showStockOutMessage("Quantity ကို 0 ထက်ကြီးအောင် ထည့်ပါ။", "error");
