@@ -1,5 +1,4 @@
-
-const CACHE_NAME = "mukahtaeain-pwa-v3";
+const CACHE_NAME = "mukahtaeain-pwa-v4";
 
 const APP_FILES = [
   "./",
@@ -41,7 +40,13 @@ self.addEventListener("fetch", (event) => {
   // Only handle requests from this PWA's own origin.
   if (url.origin !== self.location.origin) return;
 
-  // Only cache basic app navigation and static files.
+  // A root favicon is not part of this project; respond quietly.
+  if (url.pathname === "/favicon.ico") {
+    event.respondWith(new Response(null, { status: 204 }));
+    return;
+  }
+
+  // Only cache GET requests; leave API requests alone.
   if (
     request.method !== "GET" ||
     url.pathname.includes("/api/")
@@ -54,16 +59,18 @@ self.addEventListener("fetch", (event) => {
           if (response.ok) {
             const copy = response.clone();
             caches.open(CACHE_NAME)
-              .then((cache) =>
-                cache.put("./index.html", copy)
-              );
+              .then((cache) => cache.put("./index.html", copy))
+              .catch(() => {});
           }
           return response;
         })
         .catch(async () => {
           return (
             await caches.match("./index.html")
-          ) || Response.error();
+          ) || new Response("Offline page unavailable", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
+          });
         })
     );
     return;
@@ -73,14 +80,21 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((cached) => {
       if (cached) return cached;
 
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME)
-            .then((cache) => cache.put(request, copy));
-        }
-        return response;
-      });
+      return fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(request, copy))
+              .catch(() => {});
+          }
+          return response;
+        })
+        .catch(async () => {
+          return (
+            await caches.match(request)
+          ) || new Response("", { status: 404 });
+        });
     })
   );
 });
